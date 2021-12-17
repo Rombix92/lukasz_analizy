@@ -1,0 +1,81 @@
+---
+title: "Occupational Employment Statistics"
+author: "Lukasz"
+date: "11 11 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+url<-('https://assets.datacamp.com/production/repositories/1219/datasets/1e1ec9f146a25d7c71a6f6f0f46c3de7bcefd36c/oes.rds')
+download.file(url,"best2.My.Lu2.rds", method="curl")
+oes <- readRDS("best2.My.Lu2.rds")
+oes <- data.frame(oes)
+
+```
+
+```{r}
+#Hierarchical clustering: Occupation trees
+
+library(dendextend)
+dist_oes <- dist(oes, method='euclidean')
+hc_oes <- hclust(dist_oes, method='average')
+dend_oes <- as.dendrogram(hc_oes)
+plot(dend_oes)
+dend_colored <- color_branches(dend_oes, h=100000)
+plot(dend_colored)
+```
+
+```{r pressure, echo=FALSE}
+#Hierarchical clustering: Preparing for exploration
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(ggplot2)
+df_oes <- rownames_to_column(as.data.frame(oes), var = 'occupation')
+# Create a cluster assignment vector at h = 100,000
+cut_oes <- cutree(hc_oes, h = 100000)
+df_oes <- mutate(df_oes, cluster=cut_oes)
+#creating tidy format for ggplot2
+oes_tidy <- gather(df_oes, Year, Salary, -cluster, -occupation)
+sort(cut_oes)
+
+oes_tidy %>% ggplot(aes(x=Year,y=Salary, color=factor(cluster))) +
+  geom_line(aes(group=occupation))
+```
+
+```{r}
+#K-means: Elbow analysis
+#calculating totall within cluster sum of square distance
+#because kmeans consist of random component (when it start it ascribe each observation to n-th group randomly such, each group is at the begining equal in size) it may emerge with different results depending on random choose. Thats why we may say how many time it should the process to be rerun (nstart) and then choose the best solution. It is also good to set.seed at the begining to ensure reproductability of analysis
+total_withinss <- map_dbl(1:10, function(k){
+  model <- kmeans(x=oes, centers=k, nstart=20)
+  model$tot.withinss
+})
+
+# Generate a data frame containing both k and tot_withinss
+elbow_df <- data.frame( k = 1:10,tot_withinss = total_withinss)
+ggplot(elbow_df, aes(x=k, y=total_withinss))+
+  geom_line()+
+  scale_x_continuous(breaks = 1:10)
+
+#Elbow analysis propose different number of clusters then hierarhical analysis
+```
+
+```{r}
+#Silhouette widths method 
+library(cluster)
+sil_width<- map_dbl(2:10, function(k){
+  model<-pam(oes, k=k)
+  model$silinfo$avg.width
+})
+
+# Generate a data frame containing both k and sil_width
+sil_df <- data.frame(k = 2:10,  sil_width = sil_width)
+
+ggplot(sil_df, aes(x=k, y=sil_width))+
+  geom_line()
+
+# Here 7 clusters seems as good as 2
+```
+
+You ran three different methods for finding the optimal number of clusters and their assignments and you arrived with three different answers.

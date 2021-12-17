@@ -1,0 +1,183 @@
+---
+  title: "HR Analysis - accidents"
+  author: "Łukasz Rąbalski"
+  output: 
+    html_document:
+      toc: true
+      number_sections: true
+      css: style.css
+
+  knit: (function(input_file, encoding) { out_dir <- 'docs'; rmarkdown::render(input_file, encoding=encoding, output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
+---
+
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+#Data preparation
+
+Presume that workplace accidents have increased this past year at the production sites. Menager wants to find out if that's true, and if it is, to look into what might be driving the increase.
+
+Packages to load: `readr`, `dplyr`, `broom`, `ggplot2`
+```{r echo=FALSE}
+library(readr)
+library(dplyr)
+library(broom)
+library(ggplot2)
+```
+Lets begin with loading a data set. As it used to be in case of HR analysis, different information are stored in the different data sets. Information related to HR are holded in hr_data, while accidents information are stored in accident_data. 
+```{r}
+hr_url <- "https://assets.datacamp.com/production/course_5977/datasets/hr_data_2.csv"
+accident_url <- "https://assets.datacamp.com/production/course_5977/datasets/accident_data.csv"
+
+hr_data <- read_csv(hr_url)
+accident_data <- read_csv(accident_url)
+```
+At the begining I need to connect both data set into hr_joined with left_join() and mutate()
+```{r}
+hr_joined <- left_join(hr_data,accident_data, by=c("employee_id", "year")) %>% 
+  mutate(had_accident=ifelse(is.na(accident_type),0,1))
+```
+#Data analysis
+
+It's time to answer the menager's first question: did the accident rate increase from 2016 to 2017? Now that I have the had_accident variable, I can calculate the accident rate by taking the mean of had_accident. Next, I can use appropriate statistical test to see if the accident rate increase is significant. Finally I'll determine which site has the highest accident rate.
+  
+```{r block1,results='hide'}
+hr_joined %>% 
+  group_by(year) %>% 
+  summarize(accident_rate = mean(had_accident))
+```
+Finding accident rate for each year.
+```{r ref.label='block1', echo=FALSE}
+```
+Testing difference in accident rate between years. Chi square test revealed that there is signifacnt difference in accident proportion between years. In other words, in 2017 there was significantly higher proportion of accidents.
+
+```{r}
+chisq.test(hr_joined$year, hr_joined$had_accident) %>% tidy()
+```
+Which location had the highest acccident rate? Respone: East Valley (12.8%)
+
+```{r}
+hr_joined %>% 
+  group_by(location) %>%  
+  summarize(accident_rate = mean(had_accident)) %>% 
+  arrange(desc(accident_rate))
+```
+
+Comparing annual accident rates by location. As we may seen in each location increasement was observed.
+
+```{r}
+accident_rates <- hr_joined %>% 
+  group_by(location, year) %>% 
+  summarize(accident_rate = mean(had_accident))
+
+accident_rates
+```
+Graph of above comparison.
+
+```{r}
+accident_rates %>% 
+  ggplot(aes(factor(year), accident_rate)) +
+  geom_col() +
+  facet_wrap(~location)
+```
+From graph above it can be quickly noticed that highest increasment in accidents was observed in Southfield.
+  
+Because **Southfield was the location where the accident increased the most** from 2016 to 2017, I investigated furtherly what else changed there. Overworked employees are more likely to make mistakes that lead to accidents, so I start by comparing average overtime hours worked in each year.
+  
+Filtering out the other locations
+```{r}
+southfield <- hr_joined %>% 
+  filter(location == "Southfield")
+```
+
+
+Testing difference in Southfield's overtime hours between years. It turn out that **there was no significant difference in average overtime hours between years in Southfield**. Hence it can't be an explanation for increasement in accidents.
+```{r}
+southfield %>%
+  group_by(year) %>% 
+  summarize(average_overtime_hours = mean(overtime_hours))
+
+t.test(overtime_hours ~ year, data = southfield) 
+```
+
+Since overtime hours didn't have a significant change between the years, I started to search for other variables which may be responsible for observed phenomenon. Number of disengaged employees at the location was first candidate. I don't have the survey data ready yet, so I had to load it in and join it to the data I'd been working with. Performing multiple joins is common in HR analytics.
+
+After the join, I changed year to factor(year). Since I only care about the year as a grouping variable, and not its actual numeric value, changing it to a factor will make further analysis easier.
+  
+Loading new data set.
+```{r}
+survey_url <- "https://assets.datacamp.com/production/course_5977/datasets/survey_data_2.csv"
+
+survey_data <- read_csv(survey_url)
+```
+Creating the safety dataset
+```{r}
+safety <- left_join(hr_joined, survey_data, by=c("year","employee_id")) %>% mutate(disengaged=ifelse(engagement<=2,1,0), year=factor(year))
+
+southfield <- safety %>% 
+  filter(location == "Southfield")
+```
+I used a bar chart to compare the distributions of accidents between engagement groups and then used a statistical test to check if the difference I can see is significant.
+
+Visualizing the difference in % disengaged by year in Southfield
+```{r}
+southfield %>%
+  ggplot(aes(x=year, fill=factor(disengaged)))+
+  geom_bar(position='fill')
+
+chisq.test(southfield$year,southfield$disengaged)
+```
+I've found a difference in disengagement between the two years at Southfield, and no difference in overtime hours worked. Now I'll check the other locations too, to make sure those locations didn't also have a big change in disengagement. If the disengagement rate increased at the other locations where the accident rate did not change much, I'll have to doubt whether disengagement and accident rates are connected.
+
+To test the other locations all at once, I create a new dataset where Southfield is filtered out. Then I rerund the same statistical tests but used the new dataset to test the other locations.
+
+Filtering out Southfield
+```{r}
+other_locs <- safety %>% 
+  filter(location != "Southfield")
+```
+Testing whether one year had significantly more overtime hours worked
+```{r}
+t.test(overtime_hours ~ year, data = other_locs) 
+```
+Testing whether one year had significantly more disengaged employees
+```{r}
+chisq.test(other_locs$year, other_locs$disengaged)
+```
+Results indicate that in other location there was no significant increasement in accidete within two years, as well as there was no significant increasement in disengaged employees.
+  
+  
+I use multiple regression to test the impact of year and disengaged on accident rate in Southfield
+```{r}
+regression <- glm(had_accident ~ year + disengaged, family = "binomial", data = safety)
+```
+Regression analysis revealed that both year and disengagement explain sifnificantly the amount of accidents in both analysed period of time.
+```{r}
+tidy(regression)
+```
+
+#Conclusion
+Should I recommend increasing employee engagement in Southfield?
+  
+The most trivial response would sound:
+  
+* **Yes**, employee disengagement leads to a higher accident rate and should be addressed.
+  
+However it also may be that:
+
+* **No**, a higher accident rate leads to higher employee disengagement, so safety training should be addressed.
+  
+The most reasonable response hence sounds:
+
+* More analysis is needed - it could be either A or B.
+  
+Even though I used regression, I don't know exactly how to interpret it without more analysis. Correlation - even from a regression - does not imply causation, nor does it tell us which direction the potential causation might go.
+
+---
+***
+
+<table>
+  <tr><th align="center"><img src="./pics/image.png" alt="drawing" width="80"/></th><th align="center"> About the author: Psychologist, Statistician, and Data Science entusiast who enjoys disentangling everyday struggles with data support.</th></tr>
+</table>

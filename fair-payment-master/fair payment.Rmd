@@ -1,0 +1,80 @@
+---
+  title: "HR Analysis - fair paymnent"
+  output: html_document
+  knit: (function(input_file, encoding) { out_dir <- 'docs'; rmarkdown::render(input_file, encoding=encoding, output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
+---
+
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+###Author: Łukasz Rąbalski
+Packages to load: `ggplot2`, `tidyr`, `readr`, `dplyr`, `broom`
+```{r echo=FALSE}
+library(broom)
+library(readr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+```
+
+###Data set
+
+Loading database, which will be the object of this presentation. It is a fictional data set created by IBM data scientists. Access to the data set: [link](https://www.ibm.com/communities/analytics/watson-analytics-blog/hr-employee-attrition/)
+
+```{r}
+database_url <- "https://assets.datacamp.com/production/course_5977/datasets/fair_pay_data.csv"
+pay <- read_csv(database_url)
+```
+
+I will analyze the salaries of new hires and current employees to determine whether new hires are earning more.
+
+The new hires have a higher average salary than the more tenured employees, but I don't yet know whether that difference is statistically significant.
+
+```{r}
+pay %>% group_by(new_hire) %>% summarize(avg_salary=mean(salary))
+
+t.test(salary ~ new_hire, data=pay) %>% tidy()
+```
+One variable I didn't consider in my earlier statistical test is job level. Different job levels tend to have different pay levels, so if the mix of job levels for new hires is different than the mix of job levels for current employees, I could be dealing with **omitted variable bias**.
+
+Checking whether the job level composition is the same for new hires as it is for current employees.
+```{r}
+ggplot(data=pay, aes(x=new_hire, fill=job_level))+
+  geom_bar(position="fill")
+```
+
+It appears that the job level mix is different for new hires. New hires are less likely to be hourly employees, and more likely to be salaried or managers. Do new hires have a higher average salary than current employees when job level is taken into account? 
+  
+I will calculate the average salaries, and then recreate the bar chart,adding faceting to split it up by the three job levels. Are the bar heights closer together  than they were in the first plot?
+
+
+Calculating the average salary for each group of interest.
+```{r}
+pay_grouped <- pay %>% 
+  group_by(new_hire, job_level) %>% 
+  summarize(avg_salary = mean(salary))
+```
+# Graph the results using facet_wrap()  
+```{r}
+pay_grouped %>%
+  ggplot(aes(x=new_hire, y=avg_salary))+
+  geom_col()+
+  facet_wrap(~job_level, scale="free")
+```
+
+The graph shows a small difference in the average salaries for hourly workers. 
+So I will need to test whether a significant pay difference exists between hourly new hires and hourly current employees.
+  
+Filtering the data to include only hourly employees
+```{r}
+pay_filter <- pay %>% filter(job_level=="Hourly")
+
+t.test(salary ~ new_hire, data=pay_filter) %>% tidy()
+```
+
+# Conclusion
+
+New hires are being paid about the same as current employees when job level is considered.
+

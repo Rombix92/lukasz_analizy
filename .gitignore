@@ -1,0 +1,11 @@
+#packed files
+*.tar
+*.zip
+
+#raw files
+*.csv
+*.xlsx
+*.xls
+
+# OS generated files 
+*.DS_Store

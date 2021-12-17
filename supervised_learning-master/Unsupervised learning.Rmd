@@ -1,0 +1,268 @@
+---
+title: "Unsupervised Learning"
+author: "Lukasz"
+date: "12 11 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+url='https://assets.datacamp.com/production/repositories/718/datasets/c274ea22cc3d7e12d7bb9fdc9c2bdabe9ab025f4/knn_traffic_signs.csv'
+signs=read.csv(url)
+
+# Load the 'class' package
+library(class)
+
+# Use kNN to identify the test road signs
+sign_types <- signs$sign_type
+
+setwd('C:\\Users\\Public\\WORK\\Centrum wiedzy\\Programowanie\\R\\datacamp\\Unsupervised Learning\\')
+test_signs<-read.csv('test_signs.txt',sep=',')
+test_signs<-test_signs[-dim(test_signs)[1],-1]
+
+
+# Classify the next sign observed
+signs_pred <- knn(train = signs[-1], cl = sign_types, test = test_signs[-1])
+
+# Use kNN to identify the test road signs
+sign_types <- signs$sign_type
+signs_pred <- knn(train = signs[-1], test = test_signs[-1], cl = sign_types)
+
+# Create a confusion matrix of the predicted versus actual values
+signs_actual <- test_signs$sign_type
+table(signs_actual, signs_pred)
+
+# Compute the accuracy
+mean(signs_actual == signs_pred)
+
+```
+
+
+```{r}
+#checking how model will behave with different k parameters
+
+# Compute the accuracy of the baseline model (default k = 1)
+k_1 <- knn(train = signs[,-1], cl=signs[,1], test = signs_test[,-1])
+mean(k_1==signs_actual)
+
+# Modify the above to set k = 7
+k_7 <- knn(train=signs[,-1], cl=signs[,1], test=signs_test[,-1], k=7)
+mean(k_7==signs_actual)
+
+# Set k = 15 and compare to the above
+k_15 <- knn(train=signs[,-1], cl=signs[,1], test=signs_test[,-1], k=15)
+mean(k_15==signs_actual)
+```
+
+```{r}
+#checking which object to classification were choosed equivocal
+
+# Use the prob parameter to get the proportion of votes for the winning class
+sign_pred <- knn(train=signs[,-1],cl=signs[,1], test=signs_test[,-1], k=7, prob=TRUE)
+
+# Get the "prob" attribute from the predicted classes
+sign_prob <- attr(sign_pred, "prob")
+
+# Examine the first several predictions
+head(sign_pred)
+
+# Examine the proportion of votes for the winning class
+head(sign_prob)
+```
+
+BAYESIAN
+```{r}
+library(dplyr)
+#The where9am data frame contains 91 days (thirteen weeks) worth of data in which Brett recorded his location at 9am each day as well as whether the daytype was a weekend or weekday.
+url='https://assets.datacamp.com/production/repositories/718/datasets/571628c39048df59c40c9dcfba146a2cf7a4a0e3/locations.csv'
+df <- read.csv(url)
+where9am <- subset(df, hour==9)
+
+#Using the conditional probability formula below, you can compute the probability that Brett is working in the office, given that it is a weekday.
+
+# Compute P(A)  - Probability that Brett is in work
+p_A <- nrow(subset(where9am, location == "office")) / nrow(where9am)
+
+# Compute P(B)  - Probability that it is weekend
+p_B <- nrow(subset(where9am, daytype == "weekday")) / nrow(where9am)
+
+# Compute the observed P(A and B)   - Probability that Brett is in work and it is weekend
+p_AB <- nrow(subset(where9am, location == "office" & daytype == "weekday")) / nrow(where9am)
+
+# Compute P(A | B)   - Probability that Brett is in work given that it is weekend 
+p_A_given_B <- p_AB / p_B
+p_A_given_B
+
+```
+
+```{r}
+#making prediction
+
+# Load the naivebayes package
+library(naivebayes)
+
+# Build the location prediction model
+locmodel <- naive_bayes(location ~ daytype, data = where9am)
+
+thursday9am<-as.data.frame(where9am[1,4])
+names(thursday9am)<-'daytype'
+
+saturday9am<-as.data.frame(where9am[5,4])
+names(saturday9am)<-'daytype'
+
+# Predict Thursday's 9am location
+predict(locmodel, thursday9am)
+
+# Predict Saturdays's 9am location
+predict(locmodel, saturday9am)
+
+#Typing the name of the model object provides the a priori (overall) and conditional probabilities of each of the model's predictors. If one were so inclined, you might use these for calculating posterior (predicted) probabilities by hand.
+locmodel
+
+#Alternatively, R will compute the posterior probabilities for you if the type = "prob" parameter is supplied to the predict() function.
+
+# Obtain the predicted probabilities for Thursday at 9am
+predict(locmodel, thursday9am , type = 'prob')
+
+# Obtain the predicted probabilities for Saturday at 9am
+predict(locmodel, saturday9am , type = 'prob')
+
+```
+
+```{r}
+#Naive Bayes estimator with Laplace correction
+#While Brett was tracking his location over 13 weeks, he never went into the office during the weekend. Consequently, the joint probability of P(office and weekend) = 0.
+
+#Explore how this impacts the predicted probability that Brett may go to work on the weekend in the future. Additionally, you can see how using the Laplace correction will allow a small chance for these types of unforeseen circumstances.
+locations <- select(df, c(daytype,hourtype, location))
+
+# Build a NB model of location
+locmodel <- naive_bayes(location ~ daytype+hourtype, data=locations)
+
+# Predict Brett's location on a weekday afternoon
+predict(locmodel, weekday_afternoon)
+
+# Predict Brett's location on a weekday evening
+predict(locmodel, weekday_evening)
+
+```
+
+```{r}
+url='https://assets.datacamp.com/production/repositories/718/datasets/9055dac929e4515286728a2a5dae9f25f0e4eff6/donors.csv'
+
+#The donors dataset contains 93,462 examples of people mailed in a fundraising solicitation for paralyzed military veterans. The donated column is 1 if the person made a donation in response to the mailing and 0 otherwise. This binary outcome will be the dependent variable for the logistic regression model.
+
+donors <- read.csv(url)
+
+# Examine the dataset to identify potential independent variables
+str(donors)
+
+# Explore the dependent variable
+table(donors$donated)
+
+# Build the donation model
+donation_model <- glm(donated~bad_address+interest_religion+interest_veterans, 
+                      data = donors, family = "binomial")
+
+# Summarize the model results
+summary(donation_model)
+
+
+#As with many of R's machine learning methods, you can apply the predict() function to the model object to forecast future behavior. By default, predict() outputs predictions in terms of log odds unless type = "response" is specified. This converts the log odds to probabilities.
+
+# Estimate the donation probability
+donors$donation_prob <- predict(donation_model, type = "response")
+
+# Find the donation probability of the average prospect
+mean(donors$donation_prob)
+
+# Predict a donation if probability of donation is greater than average (0.0504)
+donors$donation_pred <- ifelse(donors$donation_prob > 0.0504, 1, 0)
+
+# Calculate the model's accuracy
+mean(donors$donation_pred == donors$donated)
+
+```
+
+```{r}
+#Checking quality of model with ROC
+# Load the pROC package
+library(pROC)
+
+# Create a ROC curve
+ROC <- roc(donors$donated, donors$donation_prob)
+
+# Plot the ROC curve
+plot(ROC, col = "blue")
+
+# Calculate the area under the curve (AUC)
+auc(ROC)
+
+#Awesome job! Based on this visualization, the model isn't doing much better than baseline— a model doing nothing but making predictions at random. 
+
+#When AUC values are very close, it's important to know more about how the model will be used. Diffent model with differnt AUC value may still behave differently in different type of cases
+
+# Convert the wealth rating to a factor
+donors$wealth_rating <- factor(donors$wealth_rating, levels = c(0, 1, 2, 3), labels = c("Unknown", "Low", "Medium", "High"))
+
+# Use relevel() to change reference category
+donors$wealth_rating <- relevel(donors$wealth_rating, ref = "Medium")
+
+# See how our factor coding impacts the model
+summary(glm(donated ~ wealth_rating, data = donors, family = "binomial"))
+
+#imputing missing values
+# Find the average age among non-missing values
+summary(donors$age)
+
+# Impute missing age values with the mean age
+donors$imputed_age <- ifelse(is.na(donors$age),round(mean(donors$age, na.rm=TRUE),2),donors$age)
+
+# Create missing value indicator for age
+donors$missing_age <- ifelse(is.na(donors$age),1,0)
+
+#One of the best predictors of future giving is a history of recent, frequent, and large gifts. In marketing terms, this is known as R/F/M:
+#Recency
+#Frequency
+#Money
+
+##########checking accuracy of new model
+
+# Build a recency, frequency, and money (RFM) model
+rfm_model <- glm(donated~money + recency*frequency, data=donors, family='binomial')
+
+# Summarize the RFM model to see how the parameters were coded
+summary(rfm_model)
+
+# Compute predicted probabilities for the RFM model
+donors$prob <- predict(rfm_model, type='response')
+
+# Plot the ROC curve and find AUC for the new model
+library(pROC)
+ROC <- roc(donors$donated, donors$prob)
+plot(ROC, col = "red")
+auc(ROC)
+
+```
+
+
+```{r Stepwise model}
+
+# Specify a null model with no predictors
+null_model <- glm(donated ~ 1, data = donors, family = "binomial")
+
+# Specify the full model using all of the potential predictors
+full_model <- glm(donated ~ ., data = donors, family = "binomial")
+
+# Use a forward stepwise algorithm to build a parsimonious model
+step_model <- step(null_model, scope = list(lower = null_model, upper = full_model), direction = "forward")
+
+# Estimate the stepwise donation probability
+step_prob <- predict(step_model, type = "response")
+
+# Plot the ROC of the stepwise model
+library(pROC)
+ROC <- roc(donors$donated, step_prob)
+plot(ROC, col = "red")
+auc(ROC)
+
+```

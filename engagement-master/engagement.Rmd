@@ -1,0 +1,123 @@
+---
+  title: "HR Analysis - engagement"
+  output: html_document
+  knit: (function(input_file, encoding) { out_dir <- 'docs'; rmarkdown::render(input_file, encoding=encoding, output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
+---
+###Author: Łukasz Rąbalski
+
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+
+
+Packages to load: `markdown`, `ggplot2`, `tidyr`, `readr`, `dplyr`, `broom`
+```{r, echo=FALSE}
+library(markdown)
+library(ggplot2)
+library(tidyr)
+library(readr)
+library(dplyr)
+library(broom)
+```
+
+###Data set
+
+Loading database, which will be the object of this presentation. It is a fictional data set created by IBM data scientists. Access to the data set:
+
+https://www.ibm.com/communities/analytics/watson-analytics-blog/hr-employee-attrition/
+
+```{r}
+survey_url<-'https://assets.datacamp.com/production/course_5977/datasets/survey_data.csv'
+survey<- read_csv(survey_url)
+```
+In my example I will deal with 4 variable: 
+
+* engagement score (measured with 1-5 scale)
+* department in which employee of given ID works
+* employees salary
+* vacation days taken by given employee
+
+My task is to check whether there are some differences in case of engagement between departments.
+```{r}
+summary(survey)
+```
+
+###Data Preparation
+
+Let assume that employees with the two lowest scores ("1" and "2") may be considered as truly disengaged. First step will be then creating the disengaged variable and assign the result to new variable survey_disengaged.
+```{r}
+survey_disengaged <- survey %>% mutate(disengaged = ifelse(engagement <= 2, 1, 0))
+```
+
+Now I would like to see how distributions of average salary, vacation_days_taken and percentage share of disengaged employee in each department looks like.
+```{r}
+survey_summary <- survey_disengaged %>% 
+  group_by(department) %>% 
+  summarize(pct_disengaged = mean(disengaged),
+            avg_salary = mean(salary),
+            avg_vacation_days = mean(vacation_days_taken))
+print(survey_summary)
+```
+
+Quick data set transformatioin in order to adjusting it to ggplot requirements.
+```{r}
+survey_gathered <- survey_summary %>% 
+  gather(key = "measure", value = "value",
+         pct_disengaged, avg_salary, avg_vacation_days)
+```
+
+###Data analysis
+
+And voila, this how those distributions look like.
+```{r}
+ggplot(survey_gathered, aes(measure, value, fill = department)) +
+  geom_col(position = "dodge")+
+  facet_wrap(~measure, scale="free")
+```
+
+My exploratory analysis showed that the sales departments has the lowest average employee engagement score. I've also looked at other variables, averaged by department. It can be seen that sales deparment has the fewest average vacation days taken.
+
+Even though this observation is true, I don't yet know whether the difference is significant.
+
+```{r}
+survey_disengaged <- survey_disengaged %>% mutate(in_sales=ifelse(department=="Sales","Sales","Other"))
+```
+
+t test revealed that employees from sales department characterized with significantly lower level of vacation days taken
+```{r}
+t.test(vacation_days_taken ~ in_sales, data=survey_disengaged) %>% tidy()
+```
+
+chisq. test revealed that Sales department characterize with significantly higher proportion of disengaged employees
+
+```{r}
+chisq.test(survey_disengaged$disengaged, survey_disengaged$in_sales) %>% tidy()
+```
+
+###Inicial conclusion
+
+Although, results of statistical tests  don't allow us for causal interpretation, I may propose suggestion:
+  
+  
+There is hypothetical chance that **low use of vacation days ** may be in some part responsible for **low engagement in sales department**.
+
+Let's check whether this hypothesis has some support in data.
+  
+Correlation test revealed that there is no relation between engagement and amount of vacation days taken. This is true both for all company in general and sales department.
+```{r}
+cor(survey_disengaged$engagement, survey_disengaged$vacation_days_taken)
+sales <- survey_disengaged %>% filter(in_sales=="Sales")
+cor(sales$engagement, sales$vacation_days_taken)
+```
+Lack of relation between those two variables in the sales department is well depicted in below graph. As we may see no matter which level of engagement employees declared, the distribution of *vacations days taken* was similar.
+```{r}
+sales%>%
+  ggplot(aes(x=engagement, y=vacation_days_taken))+
+  geom_point()+
+  geom_jitter(width=0.3, height=0.3)
+```
+  
+##Final conclusion
+There is no evidence to presume that low amount of vacation days taken are responsible for low engagement score in sales department. Probably some other aspects are responsible for this phenomena.

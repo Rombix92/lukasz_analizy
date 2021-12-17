@@ -1,0 +1,92 @@
+---
+  title: "HR Analysis - performance"
+  output: html_document
+  knit: (function(input_file, encoding) { out_dir <- 'docs'; rmarkdown::render(input_file, encoding=encoding, output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
+---
+###Author: Łukasz Rąbalski
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+Packages to load: `markdown`, `ggplot2`, `tidyr`, `readr`, `dplyr`, `broom`
+
+```{r, echo=FALSE}
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(broom)
+```
+
+###Data set
+
+Loading database, which will be the object of this presentation. It is a fictional data set created by IBM data scientists. Access to the data set: [link](https://www.ibm.com/communities/analytics/watson-analytics-blog/hr-employee-attrition/)
+
+```{r}
+performance_url <- "https://assets.datacamp.com/production/course_5977/datasets/performance_data.csv"
+hr_url <- "https://assets.datacamp.com/production/course_5977/datasets/hr_data.csv"
+
+hr_data <- read.csv(hr_url)
+performance_data <-read.csv(performance_url)
+```
+
+Performance ratings matter to organizations and individual employees. Being labeled a "high performer" can matter even more than the exact rating when the employee is considered for promotions, bonuses, and raises. Organizations can define "high performer" however they wish, and in this chapter, a high performer is any employee with a rating of 4 or 5 on the 5-point scale.
+
+My first object will be to create a new high_performer variable, and perform a statistical test on whether the women in this dataset are significantly less likely to be labeled high performers.
+
+ 
+Joining the two tables and checking whether the average performance rating is higher for men or women.
+```{r}
+joined_data <- left_join(hr_data, performance_data, by = "employee_id")
+
+summary(joined_data)
+
+joined_data %>% group_by(gender) %>% summarize(avg_rating=mean(rating))
+```
+
+ Adding the high_performer column
+```{r}
+performance <- joined_data %>%  
+  mutate(high_performer = ifelse(rating >= 4, 1, 0))
+```
+
+Testing whether one gender is more likely to be a high performer. Chi square test revealed that man are significanlty more often reated as high performers.
+```{r}
+chisq.test(performance$gender, performance$high_performer)%>% tidy()  
+```
+Visualizing the distribution of job_level by gender
+```{r}
+performance %>%
+  ggplot(aes(x = gender, fill = job_level)) +
+  geom_bar(position = "fill")
+```
+Testing whether men and women have significantly different job level distributions. It appeared to be true. Hence we should check whether the diffrent job position distribution may be resposnsible for this unequality in high_performance rate.
+```{r}
+chisq.test(performance$gender, performance$job_level) %>% tidy()
+```
+Visualizing the distribution of high_performer by gender, faceted by job level
+```{r}
+performance %>% 
+  ggplot(aes(x=gender, fill=factor(high_performer)))+
+  geom_bar(position="fill")+
+  facet_wrap(~job_level)
+```
+I can use logistic regression to statistically test what We saw in an earlier graph - are women less likely to be labeled a high performer, even when taking differences in job level into account? I can test this by adding job_level into the glm() formula and looking at the new p-value. The process is the same as adding a new variable to a linear regression.
+
+Runing a multiple logistic regression
+```{r}
+logistic_multiple <- glm(high_performer ~ gender + job_level, family = "binomial", data = performance)
+```
+Viewing the result with summary() or tidy()
+```{r}
+logistic_multiple %>%
+  tidy()
+```
+
+#Conclusion
+We've seen that even when differences in job levels are taken into account, women are less likely to be labeled high performers than men in this invented company dataset. 
+  
+So some initiatives should be undertaken to ensure performance ratings are given fairly. 
+Thanks for attention till the end.
+
+
