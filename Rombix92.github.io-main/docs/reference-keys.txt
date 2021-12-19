@@ -1,0 +1,8 @@
+tab:unnamed-chunk-2
+data-grapling
+eda
+missing-data
+statistics
+logistic-regression
+matematyczna-interpretacja-modelu
+graficzna-interpretacja-modelu

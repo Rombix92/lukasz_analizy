@@ -1,0 +1,16 @@
+--- 
+title: "Ksiega Lukasza"
+author: "Lukasz Rabalski"
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+documentclass: book
+bibliography: book.bib
+biblio-style: apalike
+link-citations: yes
+description: Everything you need (and nothing more) to start a bookdown book.
+---
+
+# Preface {-}
+
+Inspiration:
+http://seankross.com/2016/11/17/How-to-Start-a-Bookdown-Book.html

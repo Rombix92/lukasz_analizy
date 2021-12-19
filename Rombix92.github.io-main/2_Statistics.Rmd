@@ -1,0 +1,125 @@
+# Statistics
+## Logistic Regression 
+*[Markdown Tutorial](https://bookdown.org/yihui/rmarkdown/html-document.html)*
+
+```{r setup, include=FALSE}
+#knitr is what runs each code chunk and knits the document. Knitr will use this option as default for each cchunk in the document when the file is knit. Followiw opts_chunk$dollar_set() we can add the options that we want to set globally to the parentheses before the echo = TRUE argument
+
+knitr::opts_chunk$set(fig.align='left', echo=TRUE)
+
+#include - code & results appears in the result
+#echo - appear code in the knit file
+#eval - evaluate code in a code chunk
+#collapse - split code and any text output into multiple blocks or include in a single block in the final report
+#warning - display warning
+#message - display message like from loading packages
+#error - stop kniting file when the error will occure (if false file will knit anyway)
+```
+
+```{r data, , include=FALSE}
+library(tidyverse)
+library(dplyr)
+library(broom)
+library(moderndive)
+library(knitr)
+
+df_titanic<- read.csv('https://web.stanford.edu/class/archive/cs/cs109/cs109.1166/stuff/titanic.csv') %>%
+  mutate(Fare_log=round(log(Fare+0.001)))
+
+```
+ 
+     
+
+### Matematyczna interpretacja modelu
+
+Quiz correct answers: d. Hint: `Remember`, the coefficient in a logistic regression model is the expected increase in the log odds given a one unit increase in the explanatory variable.
+
+```{r echo=FALSE}
+df_titanic %>% select(Survived,Fare,Fare_log) %>% head() %>% kable()
+```
+Wyliczanie modelu logistycznego.
+```{r} 
+model <- glm(data=df_titanic, Survived ~ Fare_log, family = 'binomial')
+
+tidy(model)  %>% kable(caption='Table 1. Summary statistics for logistic regression model')
+```
+Model wyliczany jest zgodnie z ponizsza formula
+![](graph\\model_logistic_regression.jpg){#id .class width=50% height=50%}
+
+dlategp by otrzymac oszacowania paraemtrow w formie ich wpływu na odds musimy je poddać działaniu exp()
+
+![](graph\\odds.jpg){#id .class width=50% height=50%}
+
+```{r}
+coef(model)
+
+#Tak przemnozone wspolczynniki interpretujemy nastepujaco:
+#  o ile % wzrosnie odds wystapienia zdarzenia jezeli wzrosnie nam wartosc predyktora o 1
+
+exp(coef(model))
+
+```
+Ponizej w sposob matematyczny pokazuje ze to wlasnie oznacza interpretacja wzrostu parametra stajacego przy predyktorze.
+```{r}
+
+df_aug <- augment(model, type.predict = "response") # without response argument, the fitted value will be on log-odds scale
+
+p3 = df_aug$.fitted[df_aug$Fare_log==3][1]
+p2 = df_aug$.fitted[df_aug$Fare_log==2][1]
+
+x <- round(p3/(1-p3)/(p2/(1-p2)),5)
+
+# i sprawdzenie czy dobrze rozumiem zależnosc
+x1<-round(exp(coef(model))['Fare_log'],5)
+x1==x
+```
+
+Prob for Fare_log = 2 was equal to `r p2` while for Fare_log = 3 was equal to `r p3`. The odds increase by `r x`. The same what model results suggests -> `r x1`.
+
+
+Quiz
+
+The fitted coefficient from the medical school logistic regression model is 5.45. The exponential of this is 233.73.
+
+Donald's GPA is 2.9, and thus the model predicts that the probability of him getting into medical school is 3.26%. The odds of Donald getting into medical school are 0.0337, or—phrased in gambling terms—29.6:1. If Donald hacks the school's registrar and changes his GPA to 3.9, then which of the following statements is FALSE:
+
+Possible Answers
+
+  a)  His expected odds of getting into medical school improve to 7.8833 (or about 9:8).
+  b)  His expected probability of getting into medical school improves to 88.7%.
+  c)  His expected log-odds of getting into medical school improve by 5.45.
+  d)  His expected probability of getting into medical school improves to 7.9%.
+
+Correct answers on the top of the page
+
+### Graficzna interpretacja modelu
+```{r, collapse = TRUE, echo=FALSE, warning=FALSE}
+
+#While the odds scale is more useful than the probability scale for certain things, it isn't entirely satisfying. Statisticians also think about logistic regression models on the log-odds scale, which is formed by taking the natural log of the odds. 
+
+#The benefit to this approach is clear: now the logistic regression model can be visualized as a line! Unfortunately, understanding what the log of the odds of an event means is very difficult for humans. 
+
+df_aug <- df_aug %>% mutate(odds=(.fitted/(1-.fitted)), log_odds=log(odds))
+
+df_aug %>% 
+  ggplot()+
+  geom_line(aes(x=Fare_log,y=.fitted), color='green')+
+  geom_line(aes(x=Fare_log,y=odds ), color='red')+
+  geom_line(aes(x=Fare_log,y=log_odds ), color='blue', label='log_odds')
+```
+
+![](graph\\log_odds.jpg){#id .class width=50% height=50%}
+
+![](graph\\comparison of 3 scales.jpg){#id .class width=50% height=50%}
+
+
+
+```{r evaluating model quality}
+df_aug %>% mutate(Survived_hat=round(.fitted)) %>%
+  select(Survived, Survived_hat) %>% table
+
+#Out of sample predictions
+DiCaprio<-data.frame(Fare_log=1)
+augment(model, newdata = DiCaprio, type.predict = 'response')
+
+```
