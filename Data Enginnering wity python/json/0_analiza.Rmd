@@ -1,0 +1,153 @@
+---
+output:
+  html_document:
+    theme: readable
+    highlight: tango
+    css: "/Users/lrabalski1/Desktop/Mrowisko/mrowisko_priv_git/artefakty/0_analiza/style.css"
+    toc: true
+    toc_depth: 3
+    toc_float: 
+      collapsed: false
+      smooth_scroll: false
+  word_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 100% !important;
+  margin: auto;
+}
+</style>
+
+<!-- themes -->
+<!-- Valid themes include default, bootstrap, cerulean, cosmo, darkly, flatly, journal, lumen, paper, readable, sandstone, simplex, spacelab, united, and yeti. -->
+
+<!-- highlight -->
+<!-- Supported styles include default, tango, pygments, kate, monochrome, espresso, zenburn, haddock, breezedark, and textmate -->
+
+
+::: white
+# INITIALISATION
+
+```{r markdown_parameters, include=FALSE}
+
+#markdown ----
+knitr::opts_chunk$set(#fig.width=12, 
+                      fig.height=4,
+                       out.width = '100%'
+                      ) 
+knitr::opts_chunk$set(include =TRUE, #prevents code and results from appearing in the finished file. R Markdown still runs the code in the chunk, and the results can be used by other chunks.
+                      echo = FALSE, #echo = FALSE prevents code, but not the results from appearing in the finished file. This is a useful way to embed figures.
+                      warning = FALSE,
+                      message =FALSE,
+                      collapse=TRUE,
+                      error=TRUE
+                      )
+options(scipen=999)
+```
+
+##### python
+```{r eval=TRUE}
+library(reticulate)
+myenvs=conda_list()
+envname=myenvs$name[3]
+use_condaenv(envname, required = TRUE)
+
+Sys.setenv(RETICULATE_PYTHON = "/Users/lrabalski1/miniforge3/envs/everyday_use/bin/python")
+reticulate::py_config()
+```
+
+
+##### libraries
+```{r biblioteki, include=FALSE}
+library(DBI)
+library(stringr)
+library(stringi)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(RPostgreSQL)
+library(readr)
+library(data.table)
+library(scales)
+library(lubridate)
+library(plotly)
+
+
+
+#dla celow markdowna
+library(kableExtra)
+library(knitr)
+library(DT)
+```
+:::
+
+# graplign JSON 
+
+## using base JSON library
+
+### creating random json
+```{python}
+
+from faker import Faker
+import json
+output=open('data.JSON','w')
+fake=Faker()
+
+alldata={}
+alldata['records']=[]
+
+for x in range(10):
+  data={"name":fake.name(),"age":fake.random_int
+  (min=18, max=80, step=1),
+  "street":fake.street_address(),
+  "city":fake.city(),"state":fake.state(),
+  "zip":fake.zipcode(),
+  "lng":float(fake.longitude()),
+  #to write the JSON to a file, use the JSON.dump() method
+  "lat":float(fake.latitude())}
+  alldata['records'].append(data)
+
+json.dump(alldata,output)
+```
+
+### loading json in to python
+```{python}
+with open("data.JSON","r") as f:
+  #Use JSON.load() and pass the file reference to the method:
+  data=json.load(f)
+  #Inspect the json by looking at the first record using the following:
+  print(data['records'][0])
+  #Or just use the name:
+  print(data['records'][0]['name'])
+
+```
+
+## using Pandas
+### tranforming json to dataframe
+```{python}
+import pandas as pd
+df=pd.read_json('data.JSON')
+
+import pandas.io.json as pd_JSON
+f=open('data.JSON','r')
+data=pd_JSON.loads(f.read())
+#To create the DataFrame, you need to normalize the JSON. Normalizing is how you can flatten the JSON to fit in a table. 
+#In this case, you want to grab the individual JSON records held in the records dictionary. 
+df=pd_JSON.json_normalize(data,record_path='records')
+```
+
+### saving json to dataframe
+
+When writing to JSON, you can pass the orient parameter, which determines the format of the JSON that is returned.
+```{python}
+df.head(2).to_json(orient='columns')
+
+df.head(2).to_json(orient='records')
+
+```
+
+I find that working with JSON that is oriented around records makes processing it in tools such as Airflow much easier than JSON in other formats, such as split, index, columns, values, or table
