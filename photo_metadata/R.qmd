@@ -1,0 +1,22 @@
+```{R}
+all_files <- list.files('Google Photos',recursive=TRUE)
+all_files_json <- all_files[str_detect(all_files,'json$')]
+
+for (i in seq(1,length(all_files_json))){
+  jsonfile_temp_dir<-paste0('Google Photos/',all_files_json[i])
+  file_temp_dir<-str_replace(jsonfile_temp_dir,'.json','')
+  file_temp_txt<-read_file(jsonfile_temp_dir)
+  library(jsonlite)
+  json_temp_metadata <- fromJSON(file_temp_txt, flatten=TRUE)
+  
+  date<-lubridate::as_datetime(as.numeric(json_temp_metadata$photoTakenTime$timestamp))
+  datetime <-lubridate::as_date(lubridate::as_date(date))
+  #utworz rok
+  dir.create(paste0('photos_structured/',year(date)))
+  dir.create(paste0('photos_structured/',year(date),'/',month(date)))
+  
+  file.copy(file_temp_dir,paste0('photos_structured/',year(date),'/',month(date)))
+  
+
+}
+```
